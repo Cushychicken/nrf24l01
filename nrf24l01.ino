@@ -113,62 +113,6 @@ void setup()
   }
 
   nrf_powerup(MOD1_CSN);
-
-  /*
-  if ((rf1_status & rf2_status) == 0x0E) {
-   Serial.println("NRF modules ready");
-   } else {
-   Serial.println("ERROR: Bad Status");
-   Serial.print("Mod1 Status: ");
-   Serial.println(rf1_status, BIN);
-   Serial.print("Mod2 Status: ");
-   Serial.println(rf2_status, BIN);
-   }
-   */
-
-
-  /*
-  // Read contents of config register  
-   byte cmd = R_REGISTER | ADDR_NRF_CONFIG;
-   digitalWrite(chipSelectPin, LOW);
-   rf_status = SPI.transfer(cmd);
-   byte cfg_data = SPI.transfer(NOP);
-   digitalWrite(chipSelectPin, HIGH);  
-   Serial.println("Config data");
-   Serial.println(cfg_data);
-   
-   // Write config register
-   cmd = W_REGISTER | ADDR_NRF_CONFIG;
-   byte data[32] = {};
-   data[0] = cfg_data | (NRF_CONFIG_SET_PWR_UP << NRF_CONFIG_MASK_PWR_UP_SHIFT);
-   Serial.println(data[0]);
-   digitalWrite(chipSelectPin, LOW);
-   rf_status = SPI.transfer(cmd);
-   SPI.transfer(data[0]);
-   digitalWrite(chipSelectPin, HIGH);
-   
-   // Reading back config register 
-   cmd = R_REGISTER | ADDR_NRF_CONFIG;
-   digitalWrite(chipSelectPin, LOW);
-   rf_status = SPI.transfer(cmd);
-   cfg_data = SPI.transfer(NOP);
-   digitalWrite(chipSelectPin, HIGH);
-   Serial.println("Config data");
-   Serial.println(cfg_data);
-   
-   char buf[20];
-   for (int i = 0 ; i < 0xA; i++) {
-   cmd = R_REGISTER | i;
-   digitalWrite(chipSelectPin, LOW);
-   rf_status = SPI.transfer(cmd);
-   cfg_data = SPI.transfer(NOP);
-   digitalWrite(chipSelectPin, HIGH);
-   Serial.print("Register ");
-   Serial.print(i);
-   Serial.print(" data : ");
-   Serial.println(cfg_data, BIN); 
-   }
-   */
 }
 
 void loop()
@@ -241,7 +185,7 @@ int nrf_powerup(int chipSelectPin) {
     0,                               //Status
     (R_REGISTER | ADDR_NRF_CONFIG),  //Read Config Register
     1,                               //Buffer length
-    { 0 , 0 , 0 , 0 , 0 , "\0" }     //Junk data in buffer
+    { 0 , 0 , 0 , 0 , 0 , NULL }     //Junk data in buffer
   };
   if (DEBUG) {
     Serial.println("Cmd Struct-PWR_UP, before read");
@@ -307,42 +251,42 @@ void nrf_command_debug(struct nrf_cmd_t *cmd) {
 void nrf_register_dump(int pin_CSN) {
   
   // All registers on an NRF24L01+
-  byte registry = { ADDR_NRF_CONFIG,
-                    ADDR_NRF_EN_AA,
-                    ADDR_NRF_EN_RXADDR,
-                    ADDR_NRF_SETUP_AW0x03,
-                    ADDR_NRF_SETUP_RETR,
-                    ADDR_NRF_RF_CH,
-                    ADDR_NRF_RF_SETUP,
-                    ADDR_NRF_STATUS,
-                    ADDR_NRF_OBSERVE_TX,
-                    ADDR_NRF_CD,
-                    ADDR_NRF_RX_ADDR_P0,
-                    ADDR_NRF_RX_ADDR_P1,
-                    ADDR_NRF_RX_ADDR_P2,
-                    ADDR_NRF_RX_ADDR_P3,
-                    ADDR_NRF_RX_ADDR_P4,
-                    ADDR_NRF_RX_ADDR_P5,
-                    ADDR_NRF_TX_ADDR,
-                    ADDR_NRF_RX_PW_P0,
-                    ADDR_NRF_RX_PW_P1,
-                    ADDR_NRF_RX_PW_P2,
-                    ADDR_NRF_RX_PW_P3,
-                    ADDR_NRF_RX_PW_P4,
-                    ADDR_NRF_RX_PW_P5,
-                    ADDR_NRF_FIFO_STATUS,
-                    ADDR_NRF_DYNPD,
-                    ADDR_NRF_FEATURE };
+  byte registry[26] = { ADDR_NRF_CONFIG,
+                        ADDR_NRF_EN_AA,
+                        ADDR_NRF_EN_RXADDR,
+                        ADDR_NRF_SETUP_AW,
+                        ADDR_NRF_SETUP_RETR,
+                        ADDR_NRF_RF_CH,
+                        ADDR_NRF_RF_SETUP,
+                        ADDR_NRF_STATUS,
+                        ADDR_NRF_OBSERVE_TX,
+                        ADDR_NRF_CD,
+                        ADDR_NRF_RX_ADDR_P0,
+                        ADDR_NRF_RX_ADDR_P1,
+                        ADDR_NRF_RX_ADDR_P2,
+                        ADDR_NRF_RX_ADDR_P3,
+                        ADDR_NRF_RX_ADDR_P4,
+                        ADDR_NRF_RX_ADDR_P5,
+                        ADDR_NRF_TX_ADDR,
+                        ADDR_NRF_RX_PW_P0,
+                        ADDR_NRF_RX_PW_P1,
+                        ADDR_NRF_RX_PW_P2,
+                        ADDR_NRF_RX_PW_P3,
+                        ADDR_NRF_RX_PW_P4,
+                        ADDR_NRF_RX_PW_P5,
+                        ADDR_NRF_FIFO_STATUS,
+                        ADDR_NRF_DYNPD,
+                        ADDR_NRF_FEATURE };
                     
-  // Should change this so it's looping through an array of all usable commands
+  // Loops through all the values in 
   for (int i = 0 ; i < 26; i++) {
-    byte cmd = R_REGISTER | i;
+    byte cmd = R_REGISTER | registry[i];
     digitalWrite(pin_CSN, LOW);
     byte rf_status = SPI.transfer(cmd);
     byte cfg_data = SPI.transfer(NOP);
     digitalWrite(pin_CSN, HIGH);
     Serial.print("Register ");
-    Serial.print(i);
+    Serial.print(registry[i], HEX);
     Serial.print(" data : ");
     Serial.println(cfg_data, BIN); 
   }
