@@ -1,3 +1,9 @@
+/* File: nrf24l01.ino
+ * Description: This library interacts with the nRF wifi chip.
+ * TODO: More descriptive stuff here for silly 'duino n00bs like Josh.
+ * #codereview
+ */
+
 #include <SPI.h>
 
 #define DEBUG 1
@@ -89,24 +95,26 @@ void setup()
     nrf_command_debug(&rf1_cmd);
   }
   
-  // start SPI library
+  // These are both well named, and self-documenting.  You could probably scratch the comments here. #codereview
   setup_SPI();
-
-  // configure output pins
+  
+  // And leave extra nice comments on their implementations below. #codereview
   configure_Pins();
-
+  
   Serial.println("Initializing RF modules...");
   
   if (DEBUG) {
-    byte rf1_status = nrf_status(MOD1_CSN);
-    byte rf2_status = nrf_status(MOD2_CSN);
+    // Aggressive stack management is probably not necessary, just a style thing. #codereview
     Serial.print("Mod1 Status: ");
-    Serial.println(rf1_status, BIN);
+    Serial.println(nrf_status(MOD1_CSN), BIN);
+    
     Serial.print("Mod2 Status: ");
-    Serial.println(rf2_status, BIN);
+    Serial.println(nrf_status(MOD2_CSN), BIN);
+    
     Serial.println("Module 1 registry");
     nrf_register_dump(MOD1_CSN);
     Serial.println();
+    
     Serial.println("Module 2 registry");
     nrf_register_dump(MOD2_CSN);
     Serial.println();
@@ -133,6 +141,7 @@ byte nrf_status(int pin_CSN) {
   return rf_status;
 }
 
+// TODO: Comment here describing the read_nrf function.
 void read_nrf(struct nrf_cmd_t *cmd, int pin_CSN) {
   cmd->stat = 0;
   digitalWrite(pin_CSN, LOW);
@@ -146,6 +155,7 @@ void read_nrf(struct nrf_cmd_t *cmd, int pin_CSN) {
   }
 }
 
+// TODO: Comment here describing the write_nrf function
 void write_nrf(struct nrf_cmd_t *cmd, int pin_CSN) {
   cmd->stat = 0;
   digitalWrite(pin_CSN, LOW);
@@ -181,6 +191,7 @@ void configure_Pins() {
 
 // Brings NRF into powerup state
 int nrf_powerup(int chipSelectPin) {
+  // Nice, null terminators make me all of the happy.  Lookin' good. #codereview 
   nrf_cmd_t startup = { 
     0,                               //Status
     (R_REGISTER | ADDR_NRF_CONFIG),  //Read Config Register
@@ -234,9 +245,12 @@ void nrf_command_debug(struct nrf_cmd_t *cmd) {
   Serial.println(cmd->stat, HEX);
   Serial.println(cmd->opcode, HEX);
   Serial.println(cmd->buflen);
-  byte i=0;
+  byte i = 0;
   while ( i < cmd->buflen ) {
-    if (cmd->data[i] == '\0') {
+    // Swap sides of your conditional check to avoid accidental assignments.
+    // Things like: if (cmd->data[i] = '\0') compile, then drive you crazy for an hour.
+    // #codereview 
+    if ('\0' == cmd->data[i]) {
       break;
     } 
     else {
@@ -250,34 +264,40 @@ void nrf_command_debug(struct nrf_cmd_t *cmd) {
 // DEBUG FUNCTION
 void nrf_register_dump(int pin_CSN) {
   
+  // Another way to handle excessively long blocks, is to wrap them. 
+  // I think this looks a little better, but it's definitely a matter of opinion.
+  // #codereview 
+  
   // All registers on an NRF24L01+
-  byte registry[26] = { ADDR_NRF_CONFIG,
-                        ADDR_NRF_EN_AA,
-                        ADDR_NRF_EN_RXADDR,
-                        ADDR_NRF_SETUP_AW,
-                        ADDR_NRF_SETUP_RETR,
-                        ADDR_NRF_RF_CH,
-                        ADDR_NRF_RF_SETUP,
-                        ADDR_NRF_STATUS,
-                        ADDR_NRF_OBSERVE_TX,
-                        ADDR_NRF_CD,
-                        ADDR_NRF_RX_ADDR_P0,
-                        ADDR_NRF_RX_ADDR_P1,
-                        ADDR_NRF_RX_ADDR_P2,
-                        ADDR_NRF_RX_ADDR_P3,
-                        ADDR_NRF_RX_ADDR_P4,
-                        ADDR_NRF_RX_ADDR_P5,
-                        ADDR_NRF_TX_ADDR,
-                        ADDR_NRF_RX_PW_P0,
-                        ADDR_NRF_RX_PW_P1,
-                        ADDR_NRF_RX_PW_P2,
-                        ADDR_NRF_RX_PW_P3,
-                        ADDR_NRF_RX_PW_P4,
-                        ADDR_NRF_RX_PW_P5,
-                        ADDR_NRF_FIFO_STATUS,
-                        ADDR_NRF_DYNPD,
-                        ADDR_NRF_FEATURE };
-                    
+  byte registry[26] = { 
+    ADDR_NRF_CONFIG,
+    ADDR_NRF_EN_AA,
+    ADDR_NRF_EN_RXADDR,
+    ADDR_NRF_SETUP_AW,
+    ADDR_NRF_SETUP_RETR,
+    ADDR_NRF_RF_CH,
+    ADDR_NRF_RF_SETUP,
+    ADDR_NRF_STATUS,
+    ADDR_NRF_OBSERVE_TX,
+    ADDR_NRF_CD,
+    ADDR_NRF_RX_ADDR_P0,
+    ADDR_NRF_RX_ADDR_P1,
+    ADDR_NRF_RX_ADDR_P2,
+    ADDR_NRF_RX_ADDR_P3,
+    ADDR_NRF_RX_ADDR_P4,
+    ADDR_NRF_RX_ADDR_P5,
+    ADDR_NRF_TX_ADDR,
+    ADDR_NRF_RX_PW_P0,
+    ADDR_NRF_RX_PW_P1,
+    ADDR_NRF_RX_PW_P2,
+    ADDR_NRF_RX_PW_P3,
+    ADDR_NRF_RX_PW_P4,
+    ADDR_NRF_RX_PW_P5,
+    ADDR_NRF_FIFO_STATUS,
+    ADDR_NRF_DYNPD,
+    ADDR_NRF_FEATURE 
+  };
+  
   // Loops through all the values in 
   for (int i = 0 ; i < 26; i++) {
     byte cmd = R_REGISTER | registry[i];
