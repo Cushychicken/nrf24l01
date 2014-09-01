@@ -71,7 +71,6 @@ const int MOD2_CSN =   7;
 
 // Struct for one SPI read/write operation from NRF24L01+
 typedef struct nrf_cmd_t {
-  byte stat;      // Status code of NRF24L01+
   byte opcode;    // Opcode being sent to NRF
   byte buflen;    // Length of data variable; not relevant 
   byte data[32];  // Byte data transferred to/from NRF chip
@@ -81,46 +80,59 @@ void setup()
 {
   // Buffer structs for each RF module
   nrf_cmd_t rf1_cmd = { 
-    0, FLUSH_TX, 2, {
-      0xAA, 0x55    } 
+    FLUSH_TX, 
+    2, 
+    { 
+      0xAA, 
+      0x55
+    } 
   };
   nrf_cmd_t rf2_cmd = { 
-    0, FLUSH_TX, 2, {
-      0xAA, 0x55    } 
+    FLUSH_TX, 
+    2, 
+    { 
+      0xAA, 
+      0x55
+    } 
   };
 
   Serial.begin(9600);
-  if (DEBUG) {
-    Serial.println("Contents of rf_cmd");  
-    nrf_command_debug(&rf1_cmd);
-  }
-  
-  // These are both well named, and self-documenting.  You could probably scratch the comments here. #codereview
+
   setup_SPI();
-  
-  // And leave extra nice comments on their implementations below. #codereview
+
   configure_Pins();
-  
+
   Serial.println("Initializing RF modules...");
-  
-  if (DEBUG) {
-    // Aggressive stack management is probably not necessary, just a style thing. #codereview
-    Serial.print("Mod1 Status: ");
-    Serial.println(nrf_status(MOD1_CSN), BIN);
-    
-    Serial.print("Mod2 Status: ");
-    Serial.println(nrf_status(MOD2_CSN), BIN);
-    
-    Serial.println("Module 1 registry");
-    nrf_register_dump(MOD1_CSN);
-    Serial.println();
-    
-    Serial.println("Module 2 registry");
-    nrf_register_dump(MOD2_CSN);
-    Serial.println();
-  }
 
   nrf_powerup(MOD1_CSN);
+
+  /*
+  rf1_cmd.opcode = W_TX_PAYLOAD;
+  rf1_cmd.buflen = 2;
+  rf1_cmd.data[0] = 0xAA;
+  rf1_cmd.data[1] = 0x55;
+  rf1_cmd.data[2] = '\0';
+
+  rf2_cmd.opcode = W_TX_PAYLOAD;
+  rf2_cmd.buflen = 2;
+  rf2_cmd.data[0] = 0xAA;
+  rf2_cmd.data[1] = 0x55;
+  rf2_cmd.data[2] = '\0';
+
+  write_nrf(&rf1_cmd, MOD1_CSN);
+  digitalWrite(MOD1_RF_EN, HIGH);
+  delay(2);
+  digitalWrite(MOD1_RF_EN, LOW);
+  clear_status(MOD1_CSN); // Note - you must drive the RF_EN low to clear interrupts in Status  
+  Serial.print("Status register reads: ");
+  Serial.println(nrf_status(MOD1_CSN), HEX);
+
+
+  Serial.println("Trying to clear register");
+  Serial.print("Status register reads: ");
+  Serial.println(nrf_status(MOD1_CSN), HEX);
+  */
+
 }
 
 void loop()
@@ -130,8 +142,8 @@ void loop()
 
 
 /*******************************
-******* BASIC FUNCTIONS  *******
-*******************************/
+ ******* BASIC FUNCTIONS  *******
+ *******************************/
 
 // Gets the status of RF device for pin_CSN
 byte nrf_status(int pin_CSN) { 
@@ -141,45 +153,66 @@ byte nrf_status(int pin_CSN) {
   return rf_status;
 }
 
-// TODO: Comment here describing the read_nrf function.
-void read_nrf(struct nrf_cmd_t *cmd, int pin_CSN) {
-  cmd->stat = 0;
+byte clear_status(int pin_CSN) {
+  byte clearmask = (nrf_status(pin_CSN) & 0xF0);
+  Serial.print("Clearmask:");
+  Serial.println(clearmask, HEX);
+  nrf_cmd_t stat = { 
+    (W_REGISTER | ADDR_NRF_STATUS), 
+    1, 
+    { 
+      clearmask    
+    } 
+  };
+  write_nrf(&stat, pin_CSN);
+  return nrf_status(pin_CSN); 
+}
+
+// Reads a register from the NRF chip
+//   Note: all multi-byte reads come back backwards (LS Byte first) 
+byte read_nrf(struct nrf_cmd_t *cmd, int pin_CSN) {
   digitalWrite(pin_CSN, LOW);
-  cmd->stat = SPI.transfer(cmd->opcode);
-  for (int i = 0; i < cmd->buflen; i++) {
+  byte rf_status = SPI.transfer(cmd->opcode);
+  for (int i = (cmd->buflen - 1); i > 0; i--) {
     cmd->data[i] = SPI.transfer(NOP);
   }
   digitalWrite(pin_CSN, HIGH);
   if (cmd->buflen < 32) {
     cmd->data[cmd->buflen] = '\0';
   }
+  return rf_status;
 }
 
-// TODO: Comment here describing the write_nrf function
-void write_nrf(struct nrf_cmd_t *cmd, int pin_CSN) {
-  cmd->stat = 0;
+// Writes to a register on the NRF chip
+//   Note: Bytes are written LSByte first
+byte write_nrf(struct nrf_cmd_t *cmd, int pin_CSN) {
   digitalWrite(pin_CSN, LOW);
-  cmd->stat = SPI.transfer(cmd->opcode);
+  byte rf_status = SPI.transfer(cmd->opcode);
   for (int i = 0; i < cmd->buflen; i++) {
     SPI.transfer(cmd->data[i]);
   }
   digitalWrite(pin_CSN, HIGH);
+  return rf_status;
 }
 
 
 /*******************************
-******* SETUP FUNCTIONS  *******
-*******************************/
+ ******* SETUP FUNCTIONS  *******
+ *******************************/
 
 // Starts the SPI hardware and configures it properly
+//   Note: setting Datamode might be unnecessary as that is default 
+//         for the Arduino SPI registers
 void setup_SPI() {
   SPI.begin();
   SPI.setBitOrder(MSBFIRST);
   SPI.setDataMode(SPI_MODE0);
 }
 
-// Sets all of the non-SPI-controlled pins
+// Set up all of the control lines for the NRF chips that aren't managed
+//   by the internal SPI 
 void configure_Pins() {
+  delay(120);
   pinMode(MOD1_RF_EN, OUTPUT);
   pinMode(MOD2_RF_EN, OUTPUT);
   pinMode(MOD1_CSN, OUTPUT);
@@ -190,22 +223,37 @@ void configure_Pins() {
 }
 
 // Brings NRF into powerup state
+//   End state of NRF is Standby-1; it is ready to transmit.
+//   Pack a FIFO and go!
 int nrf_powerup(int chipSelectPin) {
-  // Nice, null terminators make me all of the happy.  Lookin' good. #codereview 
   nrf_cmd_t startup = { 
-    0,                               //Status
     (R_REGISTER | ADDR_NRF_CONFIG),  //Read Config Register
     1,                               //Buffer length
-    { 0 , 0 , 0 , 0 , 0 , NULL }     //Junk data in buffer
+    {                                //Junk data in buffer
+      0, 
+      0, 
+      0,
+      0,
+      0, 
+      NULL     
+    }     
   };
+
+  // Dumps command struct before reading from the chip
   if (DEBUG) {
     Serial.println("Cmd Struct-PWR_UP, before read");
     nrf_command_debug(&startup);
   }
-  read_nrf(&startup, chipSelectPin);
+ 
+  // Dumps command struct after reading from the chip
   if (DEBUG) {
-    Serial.println("Cmd Struct-PWR_UP, before read");
+    byte rf_stat = read_nrf(&startup, chipSelectPin);
+    Serial.print("NRF Status from read: ");
+    Serial.println(rf_stat);
+    Serial.println("Cmd Struct-PWR_UP, after read");
     nrf_command_debug(&startup);
+  } else {
+    read_nrf(&startup, chipSelectPin);
   }
 
   byte up_config = startup.data[0] | (NRF_CONFIG_SET_PWR_UP << NRF_CONFIG_MASK_PWR_UP_SHIFT);
@@ -216,8 +264,17 @@ int nrf_powerup(int chipSelectPin) {
     nrf_command_debug(&startup);
   }
   write_nrf(&startup, chipSelectPin);
-  read_nrf(&startup, chipSelectPin);
   
+  startup.opcode = (R_REGISTER | ADDR_NRF_CONFIG);
+  startup.buflen = 1;
+  
+  read_nrf(&startup, chipSelectPin);
+
+  if (DEBUG) {
+    Serial.println("Cmd Struct-PWR_UP, after write");
+    nrf_command_debug(&startup);
+  }
+
   if (DEBUG) {
     Serial.println("Config values");
     Serial.print("Written: ");
@@ -228,46 +285,35 @@ int nrf_powerup(int chipSelectPin) {
 
   if (up_config == startup.data[0]) {
     return 0;
-  } else {
+  } 
+  else {
     return -1;
   }
 }
 
 
 /***********************************
-******* AVAST! HERE BE DEBUG *******
-***********************************/
+ ******* AVAST! HERE BE DEBUG *******
+ ***********************************/
 
 // Dumps contents of a nrf_cmd_t struct to serial console
 // DEBUG FUNCTION
 void nrf_command_debug(struct nrf_cmd_t *cmd) {
-  Serial.println("Register dump");
-  Serial.println(cmd->stat, HEX);
+
+  Serial.println("nrf_cmd dump");
   Serial.println(cmd->opcode, HEX);
   Serial.println(cmd->buflen);
   byte i = 0;
   while ( i < cmd->buflen ) {
-    // Swap sides of your conditional check to avoid accidental assignments.
-    // Things like: if (cmd->data[i] = '\0') compile, then drive you crazy for an hour.
-    // #codereview 
-    if ('\0' == cmd->data[i]) {
-      break;
-    } 
-    else {
-      Serial.println(cmd->data[i], HEX);
-      i++;
-    }
+    Serial.println(cmd->data[i], HEX);
+    i++;
   };
 };
 
 // Dumps all the usable registers of a given NRF24L01+
 // DEBUG FUNCTION
 void nrf_register_dump(int pin_CSN) {
-  
-  // Another way to handle excessively long blocks, is to wrap them. 
-  // I think this looks a little better, but it's definitely a matter of opinion.
-  // #codereview 
-  
+
   // All registers on an NRF24L01+
   byte registry[26] = { 
     ADDR_NRF_CONFIG,
@@ -297,7 +343,7 @@ void nrf_register_dump(int pin_CSN) {
     ADDR_NRF_DYNPD,
     ADDR_NRF_FEATURE 
   };
-  
+
   // Loops through all the values in 
   for (int i = 0 ; i < 26; i++) {
     byte cmd = R_REGISTER | registry[i];
@@ -311,4 +357,5 @@ void nrf_register_dump(int pin_CSN) {
     Serial.println(cfg_data, BIN); 
   }
 }  
+
 
